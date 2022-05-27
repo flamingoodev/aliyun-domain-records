@@ -1,4 +1,3 @@
-// This file is auto-generated, don't edit it. Thanks.
 package main
 
 import (
@@ -12,6 +11,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"time"
 )
 
 // getCurrentHostIP
@@ -26,7 +26,7 @@ func getCurrentHostIP() (s string, _err error) {
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-
+			println(err)
 		}
 	}(resp.Body)
 	body, err := ioutil.ReadAll(resp.Body)
@@ -86,13 +86,11 @@ func DescribeDomainRecords(client *dns.Client, domainName *string, RR *string, r
 		if _err != nil {
 			return _result, _err
 		}
-
-		console.Log(tea.String("-------------------获取主域名的所有解析记录列表--------------------"))
+		console.Log(tea.String("获取主域名的所有解析记录列表"))
 		console.Log(util.ToJSONString(tea.ToMap(resp)))
 		_result = resp
 		return _result, _err
 	}()
-
 	if tryErr != nil {
 		var sdkError = &tea.SDKError{}
 		if _t, ok := tryErr.(*tea.SDKError); ok {
@@ -118,10 +116,8 @@ func UpdateDomainRecord(client *dns.Client, req *dns.UpdateDomainRecordRequest) 
 		if _err != nil {
 			return _err
 		}
-
-		console.Log(tea.String("-------------------修改解析记录--------------------"))
+		console.Log(tea.String("修改解析记录完成"))
 		console.Log(util.ToJSONString(tea.ToMap(resp)))
-
 		return nil
 	}()
 
@@ -137,8 +133,9 @@ func UpdateDomainRecord(client *dns.Client, req *dns.UpdateDomainRecordRequest) 
 	return _err
 }
 
-// _main
-func _main(args []*string) (_err error) {
+// handleUpdateDomainRecord
+// 处理更新域名记录
+func handleUpdateDomainRecord(args []*string) (_err error) {
 	regionId := args[0]
 	currentHostIP := args[1]
 	domainName := args[2]
@@ -164,7 +161,6 @@ func _main(args []*string) (_err error) {
 	recordId := record.RecordId
 	// 记录值
 	recordsValue := record.Value
-	console.Log(tea.String("-------------------当前主机公网IP为：" + tea.StringValue(currentHostIP) + "--------------------"))
 	if !tea.BoolValue(util.EqualString(currentHostIP, recordsValue)) {
 		// 修改解析记录
 		req := &dns.UpdateDomainRecordRequest{}
@@ -181,16 +177,12 @@ func _main(args []*string) (_err error) {
 			return _err
 		}
 	}
-
 	return _err
 }
 
 // main
-func main() {
-	currentHostIP, _err := getCurrentHostIP()
-	if _err != nil {
-		panic(_err)
-	}
+// 主流程
+func _main(currentHostIP string) {
 	var args []string
 	// region id
 	args = append(args, "cn-hangzhou")
@@ -207,8 +199,32 @@ func main() {
 	args = append(args, "@")
 	// recordType 解析记录类型
 	args = append(args, "A")
-	err := _main(tea.StringSlice(args))
+	err := handleUpdateDomainRecord(tea.StringSlice(args))
 	if err != nil {
 		panic(err)
+	}
+}
+
+// main
+// 主函数
+func main() {
+	cachedCurrentHostIP := ""
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for {
+		if cachedCurrentHostIP != "" {
+			<-ticker.C
+		}
+		currentHostIP, err := getCurrentHostIP()
+		if err != nil {
+			println(err)
+			continue
+		}
+		if cachedCurrentHostIP != currentHostIP {
+			console.Log(tea.String("当前主机IP地址发生变化，开始更新域名解析"))
+			console.Log(tea.String(cachedCurrentHostIP + " -> " + currentHostIP))
+			_main(currentHostIP)
+			cachedCurrentHostIP = currentHostIP
+		}
 	}
 }
